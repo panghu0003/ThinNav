@@ -34,7 +34,7 @@ export default {
   left: 0;
   width: 100%;
   height: 100%;
-  background-color: rgba(245, 245, 245, 1);
+  background-color: var(--color-background);
   display: flex;
   flex-direction: column;
   justify-content: center;
@@ -45,8 +45,9 @@ export default {
 
 .loading-bar {
   width: 300px;
+  max-width: calc(100vw - 64px);
   height: 4px;
-  background-color: rgba(220, 220, 220, 0.8);
+  background-color: var(--color-hover-overlay);
   border-radius: 2px;
   overflow: hidden;
   margin-bottom: 16px;
@@ -54,9 +55,9 @@ export default {
 
 .loading-progress {
   height: 100%;
-  background-color: #4285f4;
+  background-color: var(--color-brand);
   border-radius: 2px;
-  transition: width 0.3s ease-in-out;
+  transition: width 0.3s var(--ease-standard);
 }
 
 .loading-text {

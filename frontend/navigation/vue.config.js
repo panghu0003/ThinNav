@@ -5,10 +5,9 @@ module.exports = defineConfig({
   devServer: {
     proxy: {
       '/api': {
-        target: 'http://127.0.0.1:8000', // 本地的接口
-        // target: 'http://10.8.8.13:8888/api', // 线上的接口
+        target: process.env.VUE_APP_API_TARGET || 'http://127.0.0.1:8000',
         changeOrigin: true,
-        pathRewrite: { '^/api': '' }, // 重写路径，将 /api 移除
+        pathRewrite: { '^/api': '' },
       },
     },
   },

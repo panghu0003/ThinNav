@@ -5,15 +5,15 @@
            :key="category.id" 
            class="category fade-in" 
            :style="{ animationDelay: `${0.3 + index * 0.1}s` }">
-        <p :id="category.name" class="category-name text-h3">{{ category.name }}</p>
-        <div class="card-container staggered-container">
-          <div
-            v-for="website in category.websites"
+        <p :id="`category-${category.id}`" class="category-name text-h3">{{ category.name }}</p>
+        <div class="card-container">
+          <WebsiteCard
+            v-for="(website, wIndex) in category.websites"
             :key="website.id"
             class="card"
-          >
-            <WebsiteCard :link="website" />
-          </div>
+            :link="website"
+            :style="{ animationDelay: `${0.3 + index * 0.1 + wIndex * 0.05}s` }"
+          />
         </div>
       </div>
     </div>
@@ -47,11 +47,11 @@ export default {
 .app-content {
   display: flex;
   flex-direction: column;
-  width: 100%; /* 确保容器占满宽度 */
-  margin-left: 56px; /* 距离左部56px */
-  min-height: calc(100vh - 213px); /* 计算最小高度，减去header-image的高度 */
-  position: relative; /* 添加相对定位，使footer能够在其内部绝对定位 */
-  padding-bottom: 60px; /* 为footer留出空间 */
+  width: 100%;
+  /* 100vh - header高度 - header上间距 - container上下margin - footer预留 */
+  min-height: calc(100vh - var(--header-height) - var(--header-margin-top) - 40px - 60px);
+  position: relative;
+  padding-bottom: 60px;
 }
 
 .content-wrapper {
@@ -59,24 +59,42 @@ export default {
 }
 
 .category {
-  margin-bottom: 40px;
-  opacity: 0; /* 初始状态为不可见 */
-  animation-fill-mode: forwards; /* 保持动画结束后的状态 */
+  margin-bottom: var(--spacing-10);
+  opacity: 0;
+  animation-fill-mode: forwards;
 }
 
-.category:hover .category-name::after {
-  transform: scaleX(1) translateX(-50%); /* 保持居中 */
+/* hover 卡片所在分类提升层级，避免 tooltip 被后续分类遮挡 */
+.category:has(.website-card:hover) {
+  z-index: 20;
+  position: relative;
+}
+
+@media (max-width: 768px) {
+  .app-content {
+    /* 移动端 container margin 是 12px，重新计算 min-height */
+    min-height: calc(100vh - var(--header-height) - var(--header-margin-top) - 24px - 60px);
+  }
+
+  .category {
+    margin-bottom: var(--spacing-8);
+  }
+
+  .card-container {
+    gap: var(--spacing-3);
+  }
+}
+
+.category-name:hover::after {
+  transform: scaleX(1) translateX(-50%);
 }
 
 .card-container {
-  display: flex; /* 启用flex布局 */
-  flex-wrap: wrap; /* 允许卡片换行 */
-  justify-content: flex-start; /* 卡片从左侧开始排列 */
-  align-items: flex-start; /* 卡片从顶部开始对齐 */
-}
-
-.card {
-  margin: 10px 20px 10px 0px; /* 卡片之间的间距 */
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-start;
+  align-items: flex-start;
+  gap: var(--spacing-5);
 }
 
 .category-name {
@@ -85,27 +103,36 @@ export default {
   color: var(--text-color-primary);
   position: relative;
   display: inline-block;
-  padding-bottom: 8px; /* 增加文字和下划线的间距 */
+  padding-bottom: 8px;
+  scroll-margin-top: var(--spacing-5);
+  cursor: default;
+}
+
+@media (max-width: 768px) {
+  .category-name {
+    /* 移动端 sidebar 为顶部 sticky 横条（约 46px 高 + 12px 间距） */
+    scroll-margin-top: 58px;
+  }
 }
 
 .category-name::after {
   content: '';
   position: absolute;
-  bottom: 2px; /* 调整下划线位置 */
-  left: 50%; /* 从中间开始展开 */
+  bottom: 2px;
+  left: 50%;
   width: 100%;
-  height: 1.5px; /* 稍微调细下划线 */
-  background: linear-gradient(90deg, 
+  height: 2px;
+  background: linear-gradient(90deg,
     transparent 0%,
-    var(--text-color-primary) 20%,
-    var(--text-color-secondary) 50%,
-    var(--text-color-primary) 80%,
+    var(--color-brand) 30%,
+    var(--color-brand-hover) 50%,
+    var(--color-brand) 70%,
     transparent 100%
   );
-  opacity: 0.6; /* 降低不透明度使效果更柔和 */
-  transform: scaleX(0) translateX(-50%); /* 确保从中间展开 */
+  opacity: 0.85;
+  transform: scaleX(0) translateX(-50%);
   transform-origin: center;
-  transition: transform 0.5s cubic-bezier(0.645, 0.045, 0.355, 1); /* 使用更平滑的缓动函数 */
+  transition: transform var(--duration-slow) var(--ease-emphasized);
 }
 
 /* 版权信息样式 */
@@ -127,26 +154,20 @@ export default {
 }
 
 .footer-link {
-  color: var(--text-color-tertiary); /* 设置字体颜色 */
-  text-decoration: none; /* 去除下划线 */
+  color: var(--text-color-tertiary);
+  text-decoration: none;
   display: flex;
-  align-items: center; /* 垂直居中对齐图标和文本 */
-  justify-content: center; /* 水平居中对齐图标和文本 */
-  transition: all 0.3s ease;
+  align-items: center;
+  justify-content: center;
+  transition: color var(--duration-normal) var(--ease-standard);
 }
 
 .footer-link i {
-  margin-right: 8px; /* 图标与文本之间的间距 */
-  font-size: 16px; /* 图标大小 */
-  transition: transform 0.3s ease;
+  margin-right: var(--spacing-2);
+  font-size: 16px;
 }
 
 .footer-link:hover {
-  color: var(--text-color-secondary); /* 鼠标悬停时的字体颜色 */
-  transform: scale(1.1);
-}
-
-.footer-link:hover i {
-  transform: rotate(360deg);
+  color: var(--color-brand);
 }
 </style>

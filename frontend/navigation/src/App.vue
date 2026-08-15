@@ -1,5 +1,13 @@
 <template>
   <div id="app">
+    <transition name="loading-fade">
+      <LoadingIndicator v-if="isLoading" :is-loading="isLoading" />
+    </transition>
+    <div v-if="loadError" class="load-error">
+      <i class="fas fa-exclamation-circle load-error-icon"></i>
+      <p class="text-body">数据加载失败，请检查网络后重试</p>
+      <button type="button" class="load-error-retry" @click="loadData">重新加载</button>
+    </div>
     <div class="content-fade-in">
       <div class="header-image fade-in-down"></div>
       <div class="main-container">
@@ -13,55 +21,65 @@
 <script>
 import AppSidebar from "./components/AppSidebar.vue";
 import AppContent from "./components/AppContent.vue";
+import LoadingIndicator from "./components/LoadingIndicator.vue";
 import { getWebsites, getCategories } from "./api/api";
 
 export default {
   name: "App",
   components: {
     AppSidebar,
-    AppContent
+    AppContent,
+    LoadingIndicator
   },
   data() {
     return {
       categories: [],
-      websites: []
+      isLoading: true,
+      loadError: false
     };
   },
-  async created() {
-    try {
-      const [categoriesResponse, websitesResponse] = await Promise.all([
-        getCategories(),
-        getWebsites(),
-      ]);
+  created() {
+    this.loadData();
+  },
+  methods: {
+    async loadData() {
+      this.isLoading = true;
+      this.loadError = false;
+      try {
+        const [categoriesResponse, websitesResponse] = await Promise.all([
+          getCategories(),
+          getWebsites(),
+        ]);
 
-      const categories = categoriesResponse; // 从 getCategories 中直接获取数据
-      const websites = websitesResponse.data; // 从 getWebsites 中提取 data 字段
-      console.log(websites);
+        const categories = categoriesResponse;
+        const websites = websitesResponse.data;
 
-      if (!Array.isArray(websites)) {
-        throw new Error("Websites data is not an array");
+        if (!Array.isArray(websites)) {
+          throw new Error("Websites data is not an array");
+        }
+
+        this.categories = categories
+          .map((category) => {
+            const filteredWebsites = websites
+              .filter((website) => website.category_id === category.id)
+              .sort((a, b) => a.order - b.order);
+
+            return filteredWebsites.length > 0
+              ? {
+                  ...category,
+                  websites: filteredWebsites,
+                }
+              : null;
+          })
+          .filter((category) => category !== null)
+          .sort((a, b) => a.order - b.order);
+
+      } catch (error) {
+        console.error("Error fetching data:", error);
+        this.loadError = true;
+      } finally {
+        this.isLoading = false;
       }
-
-      // 对分类和网址进行排序、过滤和组合
-      this.categories = categories
-        .map((category) => {
-          const filteredWebsites = websites
-            .filter((website) => website.category_id === category.id)
-            .sort((a, b) => a.order - b.order); // 按网址 order 排序
-
-          // 仅返回包含网址的分类
-          return filteredWebsites.length > 0
-            ? {
-                ...category,
-                websites: filteredWebsites,
-              }
-            : null;
-        })
-        .filter((category) => category !== null) // 过滤掉没有网址的分类
-        .sort((a, b) => a.order - b.order); // 按分类 order 排序
-      
-    } catch (error) {
-      console.error("Error fetching data:", error);
     }
   }
 };
@@ -91,14 +109,15 @@ body {
 
 /* 设置整体背景颜色 */
 body {
-  background-color: rgba(245, 245, 245, 1);
+  background-color: var(--color-background);
 }
 
 .main-container {
   display: flex;
-  flex-direction: row; /* 水平排列Sidebar和Content */
-  flex-grow: 1; /* 确保主容器占满空间 */
-  margin: 20px; /* 外边距设定 */
+  flex-direction: row;
+  flex-grow: 1;
+  margin: var(--spacing-5);
+  gap: var(--spacing-14);
 }
 
 html {
@@ -106,16 +125,16 @@ html {
 }
 
 .header-image {
-  width: calc(100% - 40px); /* 减去左右的间距总和 */
-  height: 113px;
-  margin-top: 16px;
+  width: calc(100% - 40px);
+  height: var(--header-height);
+  margin-top: var(--header-margin-top);
   margin-left: auto;
   margin-right: auto;
-  background-image: url("@/assets/header.png");
+  background-image: url("@/assets/header.jpg");
   background-repeat: no-repeat;
   background-size: cover;
   background-position: center;
-  border-radius: 8px;
+  border-radius: var(--radius-lg);
 }
 
 /* 内容淡入效果 */
@@ -124,13 +143,70 @@ html {
   transition: opacity 0.5s ease-out;
 }
 
-/* 为了响应式布局，可以添加媒体查询来调整样式 */
+/* 加载遮罩淡出 */
+.loading-fade-leave-active {
+  transition: opacity var(--duration-slow) var(--ease-standard);
+}
+
+.loading-fade-leave-to {
+  opacity: 0;
+}
+
+/* 加载失败错误态 */
+.load-error {
+  position: fixed;
+  inset: 0;
+  z-index: 9998;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-4);
+  background: var(--color-background);
+  color: var(--text-color-secondary);
+}
+
+.load-error-icon {
+  font-size: 40px;
+  color: var(--text-color-tertiary);
+}
+
+.load-error-retry {
+  padding: var(--spacing-2) var(--spacing-6);
+  border: none;
+  border-radius: var(--radius-md);
+  background: var(--color-brand);
+  color: #fff;
+  font-size: var(--font-size-sm);
+  cursor: pointer;
+  transition: background var(--duration-fast) var(--ease-standard);
+}
+
+.load-error-retry:hover {
+  background: var(--color-brand-hover);
+}
+
+/* 响应式布局 */
+@media (max-width: 1024px) {
+  .main-container {
+    gap: var(--spacing-6);
+  }
+}
+
 @media (max-width: 768px) {
+  :root {
+    --header-height: 80px;
+    --header-margin-top: var(--spacing-3);
+  }
+
+  .main-container {
+    flex-direction: column;
+    gap: var(--spacing-5);
+    margin: var(--spacing-3);
+  }
+
   .header-image {
-    width: calc(100% - 40px); /* 可以根据需要调整小屏幕上的宽度 */
-    margin-top: 16px;
-    margin-left: auto;
-    margin-right: auto;
+    width: calc(100% - 24px);
   }
 }
 

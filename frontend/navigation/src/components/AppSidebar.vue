@@ -1,14 +1,14 @@
 <template>
-  <div class="AppSidebar" ref="sidebar">
+  <div class="AppSidebar">
     <ul>
-      <li v-for="category in categories" :key="category.id" 
+      <li v-for="category in categories" :key="category.id"
           class="nav-item"
-          @click="navigateTo(category.name, $event)">
+          :class="{ 'is-active': activeCategory === category.id }"
+          @click="navigateTo(category.id, $event)">
         <i :class="`fas fa-${category.icon_url}`" class="icon"></i>
         <span class="text-body-sm font-medium">{{ category.name }}</span>
       </li>
     </ul>
-    <!-- 添加底部填充元素，确保有20px的空间 -->
     <div class="sidebar-bottom-spacer"></div>
   </div>
 </template>
@@ -21,79 +21,27 @@ export default {
   },
   data() {
     return {
-      bottomGap: 20, // 距离底部的固定距离
+      activeCategory: null,
+      intersectionObserver: null,
+      visibleCategories: new Map(),
     }
-  },
-  mounted() {
-    // 立即设置初始高度
-    this.adjustSidebarHeight();
-    
-    // 确保在DOM更新后调整高度
-    this.$nextTick(this.adjustSidebarHeight);
-    
-    // 保留一个短延迟，确保样式已完全应用
-    setTimeout(this.adjustSidebarHeight, 0);
-    
-    // 监听window事件
-    window.addEventListener('resize', this.adjustSidebarHeight);
-    window.addEventListener('scroll', this.adjustSidebarHeight);
-    window.addEventListener('load', this.adjustSidebarHeight);
-    
-    // 创建MutationObserver监听DOM变化
-    if (window.MutationObserver) {
-      this.observer = new MutationObserver(this.adjustSidebarHeight);
-      this.observer.observe(document.body, { 
-        childList: true, 
-        subtree: true 
-      });
-    }
-    
-    // 强制在加载完成延迟后再次调整（确保所有资源加载完成）
-    window.setTimeout(this.adjustSidebarHeight, 1000);
   },
   beforeUnmount() {
-    window.removeEventListener('resize', this.adjustSidebarHeight);
-    window.removeEventListener('scroll', this.adjustSidebarHeight);
-    window.removeEventListener('load', this.adjustSidebarHeight);
-    
-    // 清理MutationObserver
-    if (this.observer) {
-      this.observer.disconnect();
+    if (this.intersectionObserver) {
+      this.intersectionObserver.disconnect();
     }
   },
   watch: {
     categories: {
       handler() {
-        // 当分类数据变化时，重新计算sidebar高度
         this.$nextTick(() => {
-          this.adjustSidebarHeight();
+          this.setupIntersectionObserver();
         });
       },
       deep: true
     }
   },
   methods: {
-    adjustSidebarHeight() {
-      const sidebar = this.$refs.sidebar;
-      if (!sidebar) return;
-      
-      // 计算可用窗口高度
-      const windowHeight = window.innerHeight;
-      
-      // 获取sidebar当前的顶部位置
-      const sidebarTop = sidebar.getBoundingClientRect().top;
-      
-      // 计算sidebar的最大高度：窗口高度 - 顶部位置 - 底部间距
-      const maxHeight = windowHeight - sidebarTop - this.bottomGap;
-      
-      // 设置最大高度（不再动态设置height属性）
-      sidebar.style.maxHeight = `${Math.max(maxHeight, 100)}px`;
-      
-      // 移除不必要的样式设置，依赖CSS中的margin-bottom
-      if (sidebar.style.marginBottom !== `${this.bottomGap}px`) {
-        sidebar.style.marginBottom = `${this.bottomGap}px`;
-      }
-    },
     createRippleEffect(event) {
       // 创建波纹元素
       const ripple = document.createElement('span');
@@ -116,22 +64,57 @@ export default {
         ripple.remove();
       }, 600); // 与CSS动画时长匹配
     },
-    navigateTo(categoryName, event) {
-      // 创建波纹效果
+    navigateTo(categoryId, event) {
       this.createRippleEffect(event);
-      
-      // 查找目标元素
-      const targetElement = document.getElementById(categoryName);
+      this.activeCategory = categoryId;
+
+      const anchorId = `category-${categoryId}`;
+      const targetElement = document.getElementById(anchorId);
       if (targetElement) {
-        // 使用 scrollIntoView 进行平滑滚动
         targetElement.scrollIntoView({
           behavior: 'smooth',
           block: 'start'
         });
-        
-        // 更新 URL，但不触发默认的滚动行为
-        history.pushState(null, '', `#${categoryName}`);
+
+        history.pushState(null, '', `#${anchorId}`);
       }
+    },
+    setupIntersectionObserver() {
+      if (this.intersectionObserver) {
+        this.intersectionObserver.disconnect();
+      }
+      this.visibleCategories.clear();
+
+      const options = {
+        root: null,
+        // 上半部分 20% 作为"激活区"，下半部分放宽，确保高分类也能命中
+        rootMargin: '-20% 0px -50% 0px',
+        threshold: 0
+      };
+
+      this.intersectionObserver = new IntersectionObserver((entries) => {
+        entries.forEach((entry) => {
+          const id = Number(entry.target.id.replace('category-', ''));
+          if (Number.isNaN(id)) return;
+          if (entry.isIntersecting) {
+            this.visibleCategories.set(id, entry.boundingClientRect.top);
+          } else {
+            this.visibleCategories.delete(id);
+          }
+        });
+
+        // 取可见分类中最靠上的一个作为激活项；都不可见时保持原值
+        if (this.visibleCategories.size > 0) {
+          const topMost = [...this.visibleCategories.entries()]
+            .sort((a, b) => a[1] - b[1])[0][0];
+          this.activeCategory = topMost;
+        }
+      }, options);
+
+      this.categories.forEach((category) => {
+        const el = document.getElementById(`category-${category.id}`);
+        if (el) this.intersectionObserver.observe(el);
+      });
     }
   }
 };
@@ -143,22 +126,21 @@ export default {
   width: 100%;
   max-width: 200px;
   min-width: 125px;
-  background-color: white;
-  border-radius: 8px;
-  box-shadow: 0px 4px 4px rgba(240, 244, 249, 0.1);
+  background-color: var(--color-surface);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
   position: sticky;
-  top: 20px; /* 顶部固定距离 */
-  margin-bottom: 20px; /* 保持底部边距 */
+  top: var(--spacing-5);
+  margin-bottom: var(--spacing-5);
   overflow-y: auto;
   overflow-x: hidden;
   scrollbar-width: thin;
-  scrollbar-color: rgba(148, 148, 148, 0.1) transparent;
+  scrollbar-color: var(--scrollbar-color) transparent;
   display: flex;
   flex-direction: column;
-  
-  /* 高度调整 */
+
   height: auto;
-  max-height: calc(100vh - 40px); /* 视口高度减去顶部和底部边距 */
+  max-height: calc(100vh - 40px);
 }
 
 /* 添加底部填充元素样式 */
@@ -178,7 +160,7 @@ export default {
 }
 
 .AppSidebar::-webkit-scrollbar-thumb {
-  background: rgba(148, 148, 148, 0.1); /* 更透明的滚动条颜色 */
+  background: var(--scrollbar-color); /* 更透明的滚动条颜色 */
   border-radius: 8px; /* 滚动条的圆角 */
   transition: background 0.3s ease; /* 平滑过渡效果 */
 }
@@ -188,12 +170,12 @@ export default {
 }
 
 .AppSidebar:hover::-webkit-scrollbar-thumb {
-  background: rgba(148, 148, 148, 0.1); /* 鼠标悬停时更明显的滚动条颜色 */
+  background: var(--scrollbar-color); /* 鼠标悬停时更明显的滚动条颜色 */
 }
 
 /* Firefox 滚动条颜色 */
 .AppSidebar:hover {
-  scrollbar-color: rgba(148, 148, 148, 0.1) transparent; /* 鼠标悬停时滚动条颜色 */
+  scrollbar-color: var(--scrollbar-color) transparent; /* 鼠标悬停时滚动条颜色 */
 }
 
 .AppSidebar ul {
@@ -208,18 +190,43 @@ export default {
   height: 32px;
   line-height: 32px;
   padding: 4px 0 4px 16px;
-  margin-top: 12px;
+  margin-top: var(--spacing-3);
   position: relative;
-  overflow: hidden; /* 为波纹效果添加溢出隐藏 */
+  overflow: hidden;
   cursor: pointer;
-  transition: background-color 0.3s ease;
-  width: 100%; /* 确保整行都可点击 */
+  transition: background-color var(--duration-normal) var(--ease-standard);
+  width: 100%;
 }
 
 /* 导航项悬停效果 */
 .AppSidebar li.nav-item:hover {
-  background-color: rgba(0, 0, 0, 0.05);
-  border-radius: 4px;
+  background-color: var(--color-hover-overlay);
+  border-radius: var(--radius-sm);
+}
+
+/* 当前分类高亮 */
+.AppSidebar li.nav-item.is-active {
+  background-color: var(--color-brand-light);
+  border-radius: var(--radius-sm);
+  position: relative;
+}
+
+.AppSidebar li.nav-item.is-active::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 3px;
+  height: 60%;
+  background: var(--color-brand);
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+}
+
+.AppSidebar li.nav-item.is-active .icon,
+.AppSidebar li.nav-item.is-active span {
+  color: var(--color-brand);
+  font-weight: var(--font-weight-semibold);
 }
 
 /* 波纹效果 */
@@ -243,8 +250,9 @@ export default {
   font-size: 16px;
   width: 16px;
   height: 16px;
-  margin-right: 12px;
+  margin-right: var(--spacing-3);
   object-fit: contain;
+  transition: color var(--duration-fast) var(--ease-standard);
 }
 
 .AppSidebar span {
@@ -252,10 +260,58 @@ export default {
   color: var(--text-color-primary);
   cursor: pointer;
   letter-spacing: var(--letter-spacing-normal);
-  transition: color 0.2s ease;
+  transition: color var(--duration-fast) var(--ease-standard);
 }
 
 .AppSidebar li:hover span {
-  color: var(--text-color-secondary);
+  color: var(--color-brand);
+}
+
+.AppSidebar li:hover .icon {
+  color: var(--color-brand);
+}
+
+/* 移动端：sidebar 变为顶部横向滚动条 */
+@media (max-width: 768px) {
+  .AppSidebar {
+    max-width: 100%;
+    min-width: 0;
+    width: 100%;
+    flex-direction: row;
+    overflow-x: auto;
+    overflow-y: hidden;
+    max-height: none;
+    padding: var(--spacing-1) var(--spacing-2);
+  }
+
+  .AppSidebar ul {
+    display: flex;
+    flex-direction: row;
+    gap: var(--spacing-1);
+    padding: var(--spacing-1) 0;
+  }
+
+  .AppSidebar li {
+    flex-shrink: 0;
+    margin-top: 0;
+    padding: 4px var(--spacing-3);
+    height: 36px;
+    line-height: 36px;
+    white-space: nowrap;
+  }
+
+  .AppSidebar li.nav-item.is-active::before {
+    left: 50%;
+    top: auto;
+    bottom: 0;
+    transform: translateX(-50%);
+    width: 60%;
+    height: 2px;
+    border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+  }
+
+  .sidebar-bottom-spacer {
+    display: none;
+  }
 }
 </style>

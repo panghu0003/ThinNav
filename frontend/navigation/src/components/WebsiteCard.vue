@@ -1,18 +1,19 @@
 <template>
-  <div class="website-card zoom-in" @click="navigateToUrl(link.url)" @mouseover="showTooltip" @mouseleave="hideTooltip" ref="card">
+  <div class="website-card zoom-in" @click="navigateToUrl(link.url)">
     <div class="website-icon">
-      <img :src="link.icon_url" alt="icon" />
+      <img
+        v-if="!iconFailed && link.icon_url"
+        :src="link.icon_url"
+        alt="icon"
+        @error="iconFailed = true"
+      />
+      <span v-else class="icon-fallback">{{ fallbackText }}</span>
     </div>
     <div class="website-info">
       <p class="website-name text-body">{{ link.name }}</p>
       <p class="website-description text-body-sm">{{ link.description }}</p>
     </div>
-    <teleport to="body">
-      <div v-if="tooltipVisible" class="tooltip text-body-sm" :style="tooltipStyle">
-        {{ link.description }}
-        <div class="tooltip-arrow" :style="tooltipArrowStyle"></div>
-      </div>
-    </teleport>
+    <div class="tooltip text-body-sm" role="tooltip">{{ link.description }}</div>
   </div>
 </template>
 
@@ -24,67 +25,18 @@ export default {
   },
   data() {
     return {
-      tooltipVisible: false,
-      tooltipStyle: {},
-      tooltipArrowStyle: {}
+      iconFailed: false
     };
+  },
+  computed: {
+    fallbackText() {
+      const name = this.link && this.link.name ? this.link.name.trim() : '';
+      return name ? name.charAt(0).toUpperCase() : '?';
+    }
   },
   methods: {
     navigateToUrl(url) {
       window.open(url, '_blank');
-    },
-    showTooltip() {
-      this.tooltipVisible = true;
-      this.$nextTick(() => {
-        this.updateTooltipPosition();
-      });
-    },
-    hideTooltip() {
-      this.tooltipVisible = false;
-    },
-    updateTooltipPosition() {
-      const cardRect = this.$refs.card.getBoundingClientRect();
-      const tooltipHeight = 60; // 提示框的高度，您可以根据实际高度调整
-      const spaceBelow = window.innerHeight - cardRect.bottom;
-      
-      // 计算绝对位置（相对于视口）
-      const absoluteLeft = cardRect.left + cardRect.width / 2;
-      
-      if (spaceBelow < tooltipHeight) {
-        // 当底部空间不足时，将提示框放在卡片上方
-        this.tooltipStyle = {
-          position: 'fixed',
-          top: `${cardRect.top - tooltipHeight - 10}px`,
-          left: `${absoluteLeft}px`,
-          transform: 'translateX(-50%)',
-          zIndex: '9999'
-        };
-        this.tooltipArrowStyle = {
-          position: 'absolute',
-          top: '100%',
-          left: '50%',
-          transform: 'translateX(-50%)',
-          borderWidth: '5px 5px 0 5px',
-          borderColor: 'rgba(0, 0, 0, 0.8) transparent transparent transparent',
-        };
-      } else {
-        // 当底部空间足够时，将提示框放在卡片下方
-        this.tooltipStyle = {
-          position: 'fixed',
-          top: `${cardRect.bottom + 10}px`,
-          left: `${absoluteLeft}px`,
-          transform: 'translateX(-50%)',
-          zIndex: '9999'
-        };
-        this.tooltipArrowStyle = {
-          position: 'absolute',
-          bottom: '100%',
-          left: '50%',
-          transform: 'translateX(-50%)',
-          borderWidth: '0 5px 5px 5px',
-          borderColor: 'transparent transparent rgba(0, 0, 0, 0.8) transparent',
-        };
-      }
     }
   }
 };
@@ -92,82 +44,156 @@ export default {
 
 <style scoped>
 .website-card {
-  width: 300px; /* 卡片宽度 */
-  height: 110px; /* 卡片高度 */
-  opacity: 0; /* 初始状态为不可见 */
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 1);
-  box-shadow: 0px 4px 4px rgba(240, 244, 249, 0.1);
+  width: 300px;
+  max-width: 100%;
+  min-height: 88px;
+  opacity: 0;
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-sm);
+  border: 1px solid transparent;
   display: flex;
-  cursor: pointer; /* 当鼠标悬停时显示手指图标 */
-  position: relative; /* 为了定位提示框 */
-  animation-fill-mode: forwards; /* 保持动画结束后的状态 */
-  transition: transform 0.3s ease, box-shadow 0.3s ease; /* 添加过渡效果 */
+  align-items: center;
+  gap: var(--spacing-4);
+  padding: var(--spacing-4) var(--spacing-5);
+  cursor: pointer;
+  position: relative;
+  animation-fill-mode: forwards;
+  transition: transform var(--duration-normal) var(--ease-standard),
+              box-shadow var(--duration-normal) var(--ease-standard),
+              border-color var(--duration-normal) var(--ease-standard);
 }
 
 .website-card:hover {
-  transform: translateY(-3px); /* 悬停时轻微上浮 */
-  box-shadow: 0px 6px 12px rgba(0, 0, 0, 0.1); /* 增强阴影效果 */
+  transform: translateY(-3px);
+  box-shadow: var(--shadow-md);
+  border-color: var(--color-brand-border);
+  z-index: 20;
 }
 
 .website-icon {
-  padding: 20px; /* 内边距 */
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  transition: transform var(--duration-normal) var(--ease-standard);
+}
+
+.website-card:hover .website-icon {
+  transform: scale(1.08);
 }
 
 .website-icon img {
-  width: 40px; /* 图标宽度 */
-  height: 40px; /* 图标高度 */
-  object-fit: contain; /* 保持图标的比例 */
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  border-radius: var(--radius-sm);
+}
+
+.icon-fallback {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  border-radius: var(--radius-sm);
+  background: var(--color-brand-light);
+  color: var(--color-brand);
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-semibold);
+  user-select: none;
 }
 
 .website-info {
   display: flex;
-  flex-direction: column; /* 使名称和描述垂直排列 */
-  padding-top: 20px;
-  padding-bottom: 20px;
-  padding-right: 20px;
+  flex-direction: column;
+  justify-content: center;
+  min-width: 0;
+  flex: 1;
 }
 
 .website-name {
-  margin: 0 0 6px 0; /* 移除默认的外边距，保留底部间距 */
+  margin: 0 0 6px 0;
   color: var(--text-color-primary);
 }
 
 .website-description {
-  margin: 0; /* 移除默认的外边距 */
+  margin: 0;
   color: var(--text-color-secondary);
-  display: -webkit-box; /* 使用弹性盒布局 */
-  -webkit-box-orient: vertical; /* 垂直方向布局 */
-  -webkit-line-clamp: 2; /* 限制显示两行 */
-  overflow: hidden; /* 超出部分隐藏 */
-  text-overflow: ellipsis; /* 超出部分用省略号代替 */
-  max-height: 3em; /* 两行文字的高度 */
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-height: 3em;
   line-height: var(--line-height-normal);
 }
-</style>
 
-<style>
-/* 全局样式，确保tooltip在任何地方都能正确显示 */
+/* 纯 CSS tooltip：默认在卡片上方，卡片靠近顶部时自动翻到下方 */
 .tooltip {
-  position: fixed;
-  background-color: rgba(0, 0, 0, 0.8);
-  color: rgba(255, 255, 255, 0.9);
+  position: absolute;
+  bottom: calc(100% + 10px);
+  left: 50%;
+  transform: translateX(-50%) translateY(4px);
+  background-color: var(--tooltip-bg);
+  color: var(--tooltip-color);
   padding: 8px 12px;
-  border-radius: 4px;
-  width: 200px;
-  max-width: 200px;
+  border-radius: var(--radius-sm);
+  width: max-content;
+  max-width: 260px;
   white-space: normal;
   word-break: break-word;
-  box-shadow: 0px 4px 8px rgba(0, 0, 0, 0.2);
-  opacity: 1;
-  z-index: 9999;
-  pointer-events: none;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
   line-height: var(--line-height-normal);
+  pointer-events: none;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity var(--duration-fast) var(--ease-standard),
+              transform var(--duration-fast) var(--ease-standard),
+              visibility var(--duration-fast);
+  z-index: 10;
 }
 
-.tooltip-arrow {
-  width: 0;
-  height: 0;
-  border-style: solid;
+.tooltip::before {
+  content: '';
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  border: 5px solid transparent;
+  border-top-color: var(--tooltip-bg);
+}
+
+.website-card:hover .tooltip {
+  opacity: 1;
+  visibility: visible;
+  transform: translateX(-50%) translateY(0);
+}
+
+/* 前两行卡片靠近视口顶部时，tooltip 翻到下方 */
+.category:first-child .website-card .tooltip {
+  bottom: auto;
+  top: calc(100% + 10px);
+  transform: translateX(-50%) translateY(-4px);
+}
+
+.category:first-child .website-card .tooltip::before {
+  top: auto;
+  bottom: 100%;
+  border-top-color: transparent;
+  border-bottom-color: var(--tooltip-bg);
+}
+
+.category:first-child .website-card:hover .tooltip {
+  transform: translateX(-50%) translateY(0);
+}
+
+@media (max-width: 768px) {
+  .website-card {
+    width: 100%;
+  }
+
+  .tooltip {
+    max-width: calc(100vw - 64px);
+  }
 }
 </style>
